@@ -1,13 +1,14 @@
+# Rachel Bash 
 # getting population data
 
 
-
+remove(list = ls())  # clear all workspace variables
 library(tidycensus)
 library(tidyverse)
 library(tigris)
 
-
-source("misc/find_google_drive.R")
+#utility functions
+source("utils/find_google_drive.R")
 source("utils/data_utils.R")
 
 

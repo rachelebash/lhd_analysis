@@ -1,0 +1,19 @@
+# get data
+
+
+#census_api_key("69c22a44cb77d733f583c3934266da10c914f128", install = TRUE)
+
+get_pop <- function(geography, variables, state, year, geometry = TRUE) {
+  pop <- tidycensus::get_decennial(geography = geography, 
+                       variables = variables,
+                       state = state,
+                       year = year,
+                       geometry = TRUE)
+  tidy_pop <- pop %>%
+    janitor::clean_names() %>%
+    mutate(county = sapply(strsplit(pop$NAME, ',\\s*'), `[`, 3),
+           block_group = sapply(strsplit(pop$NAME, ',\\s*'), `[`, 1),
+           census_tract = sapply(strsplit(pop$NAME, ',\\s*'), `[`, 2),
+           population = value) %>%
+    select(county, block_group, census_tract, population, geoid, geometry)
+}
