@@ -12,14 +12,16 @@ library(rgeos)
 library(raster)
 library(plotly)
 library(units)
+library(zoo)
 library(maps)
 
 #utility functions
 source("utils/find_google_drive.R")
 source("utils/data_utils.R")
 
-# get rid of scientific notation
-options(scipen = 1000)
+#global options
+theme_set(theme_classic())
+options(scipen = 1000) # get rid of scientific notation
 
 # read in LHD data
 lhd <- read.csv(paste0(drive_dir, "/data/Low Head Dam Inventory Final CIM 092920 - Inventory.csv")) %>%
@@ -76,7 +78,7 @@ ggplot(lhd_mi, aes(color = structure_category)) +
 
 
 # loop through buffer sizes ----------------------
-buffers <- c(1, 5, 10, 25, 50)
+buffers <- c(1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50)
 
 
 for (i in buffers) {
@@ -113,7 +115,7 @@ for (i in buffers) {
 # test visually - total pop at each lhd by buffer size
 
 ggplot() +
-  geom_sf(buffer50, mapping = aes(fill = total_pop, color = total_pop)) +
+  geom_sf(buffer20, mapping = aes(fill = total_pop, color = total_pop)) +
   geom_sf(lhd_mi, mapping = aes())
 
 
@@ -123,7 +125,8 @@ ggplot() +
 buffer0 <- buffer1 %>% mutate(total_pop = 0, buffer = 0)
 
 # combine all buffer dfs
-lhd_pop_summary <- rbind(buffer0, buffer1, buffer5, buffer10, buffer25, buffer50)
+lhd_pop_summary <- rbind(buffer0, buffer1, buffer5, buffer10, buffer15, buffer20,
+                         buffer25, buffer30, buffer35, buffer40, buffer45, buffer50)
 
 #normalize function
 norm <- function(x){(x-min(x))/(max(x)-min(x))}
@@ -135,13 +138,36 @@ lhd_pop_summary <- lhd_pop_summary %>%
   ungroup()
 
 # visualize normalized population increase for each lhd buffer
-ggplotly(ggplot(lhd_pop_summary, aes(x = buffer, y = total_pop_norm, group = factor(uid))) +
-  geom_line()) #switch to y = total_pop to see non-normalized
+ggplotly(ggplot(lhd_pop_summary) +
+  geom_line(mapping = aes(x = buffer, y = total_pop_norm, group = factor(uid), col = uid), 
+            color = "grey", size = 0.3) + #switch to y = total_pop to see non-normalized
+  geom_line(subset(lhd_pop_summary, uid %in% c("343")), 
+            mapping = aes(x = buffer, y = total_pop_norm, group = factor(uid), col = uid), 
+            color = "pink", size = 0.6) +
+  labs(x = "Buffer radius (mi)", y = "Total Population Normalized"))
+ 
+# interpolate normalized data
+buffer_interp <- lhd_pop_summary %>%
+  st_drop_geometry() %>%
+  group_by(uid) %>%
+  summarise(buffer_interp = list(approx(total_pop_norm, buffer, xout = 0.5))) %>%
+  ungroup() %>%
+  mutate(p_prime = purrr::map_dbl(buffer_interp, 'x'),
+         radius_0.5 = purrr::map_dbl(buffer_interp, 'y')) %>%
+  select(-buffer_interp)
 
+# join interp data with lhd_pop_summary data
+lhd_pop_interp <- merge(lhd_pop_summary, buffer_interp)
 
-
-
-
+# interpolate to population
+pop_interp <- lhd_pop_interp %>%
+  st_drop_geometry() %>%
+  group_by(uid) %>%
+  summarise(pop_interp = list(approx(buffer, total_pop, xout = radius_0.5))) %>%
+  ungroup() %>%
+  mutate(radius_0.5 = purrr::map_dbl(pop_interp, 'x'),
+         total_pop_0.5 = purrr::map_dbl(pop_interp, 'y')) %>%
+  select(-pop_interp)
 
 
 
@@ -154,6 +180,8 @@ ggplotly(ggplot(lhd_pop_summary, aes(x = buffer, y = total_pop_norm, group = fac
 
 # still to do
 # 1. fix pop function to include state as a column
-# 
-# 
-# 
+# 2. interpolate
+# 3. weight by # pop within radius
+# 4. histogram of final value for each lhd
+
+# choose only first one of the list in pop_interp since there are currently 12
