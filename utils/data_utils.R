@@ -14,6 +14,7 @@ get_pop <- function(geography, variables, state, year, geometry = TRUE) {
     mutate(county = sapply(strsplit(pop$NAME, ',\\s*'), `[`, 3),
            block_group = sapply(strsplit(pop$NAME, ',\\s*'), `[`, 1),
            census_tract = sapply(strsplit(pop$NAME, ',\\s*'), `[`, 2),
+           state = sapply(strsplit(pop$NAME, ',\\s*'), `[`, 4),
            population = value) %>%
-    select(county, block_group, census_tract, population, geoid, geometry)
+    select(state, county, block_group, census_tract, population, geoid, geometry)
 }
