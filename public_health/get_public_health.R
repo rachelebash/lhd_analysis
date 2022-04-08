@@ -115,7 +115,8 @@ p1 <- ggplot(lhd_pop_summary) +
 #            mapping = aes(x = buffer, y = total_pop, group = factor(uid), col = uid), 
 #            color = "pink", size = 0.6) +
   labs(x = "Buffer radius (mi)", y = "Total Population")
-ggsave("/plots/radius_v_pop.png")
+
+ggsave("public_health/plots/radius_v_pop.png")
 
 p2 <- ggplot(lhd_pop_summary) +
   geom_line(mapping = aes(x = buffer, y = total_pop_norm, group = factor(uid), col = uid), 
@@ -124,6 +125,9 @@ p2 <- ggplot(lhd_pop_summary) +
   #            mapping = aes(x = buffer, y = total_pop_norm, group = factor(uid), col = uid), 
   #            color = "pink", size = 0.6) +
   labs(x = "Buffer radius (mi)", y = "Total Population Normalized")
+
+ggsave("public_health/plots/radius_v_pop_norm.png")
+
  
 # interpolate normalized data
 buffer_interp <- lhd_pop_summary %>%
@@ -135,10 +139,12 @@ buffer_interp <- lhd_pop_summary %>%
          radius_0.5 = purrr::map_dbl(buffer_interp, 'y')) %>%
   select(-buffer_interp)
 
+
 # join interp data with lhd_pop_summary data
 lhd_pop_interp <- merge(lhd_pop_summary, buffer_interp)
 
-saveRDS(lhd_pop_interp, "./data/public_health/lhd_pop_summary.rds")
+saveRDS(lhd_pop_interp, "data/public_health/lhd_pop_summary.rds")
+
 
 # weight radius at p'0.5 and then multiply by 1/2 of total population
 weighted_pop <- lhd_pop_interp %>%
@@ -147,30 +153,20 @@ weighted_pop <- lhd_pop_interp %>%
   summarise(uid = uid, total_pop = total_pop, 
             radius_0.5 = radius_0.5, wpop = radius_0.5*total_pop/2)
 
+
 # plot histogram showing weighted pop distribution
 p3 <- ggplot(weighted_pop) +
   geom_histogram(aes(x = wpop), binwidth = 1000000) +
   labs(x = "Weighted pop = Total pop x radius at 0.5 pop", y = "# LHDs") +
   xlim(0,70000000)
 
+ggsave("public_health/plots/weighted_pop_hist.png")
+
+
 # summary weighted pop
 weighted_pop_sum <- weighted_pop %>%
   mutate(pct = ntile(wpop,10), pct = paste0(pct,"0%"),
          rank = rank(-wpop))
 
+saveRDS(weighted_pop_sum, "data/public_health/weighted_pop_rank.rds")
 
-ggplot(weighted_pop_sum) +
-  geom_point(aes(x = pop_pct, y = tot_lhd)) +
-  xlim(0,70000000)
-
-test <- weighted_pop %>%
-summarise(pop_pct = quantile(wpop, probs = seq(0.1,0.9, by = 0.1)),
-            tot_lhd = n())
-
-
-
-# still to do
-# 1. 
-# 2. every 10 percentiles = total # lhd in each; pop value of each percentile
-# 3. logger, print ggplot figures
-# 4. dummy file .gitkeep
