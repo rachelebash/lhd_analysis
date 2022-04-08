@@ -3,6 +3,7 @@
 
 #census_api_key("69c22a44cb77d733f583c3934266da10c914f128", install = TRUE)
 
+#population census block data
 get_pop <- function(geography, variables, state, year, geometry = TRUE) {
   pop <- tidycensus::get_decennial(geography = geography, 
                        variables = variables,
@@ -18,3 +19,6 @@ get_pop <- function(geography, variables, state, year, geometry = TRUE) {
            population = value) %>%
     select(state, county, block_group, census_tract, population, geoid, geometry)
 }
+
+#list of states surrounding CO for population census block data
+all_states <- c("04", "08", "20", "31", "35", "40", "49", "56")
