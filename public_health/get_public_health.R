@@ -160,7 +160,7 @@ p3 <- ggplot(weighted_pop) +
   labs(x = "Weighted pop = Total pop x radius at 0.5 pop", y = "# LHDs") +
   xlim(0,70000000)
 
-ggsave("public_health/plots/weighted_pop_hist.png")
+ggsave("public_health/plots/weighted_pop_hist2.png")
 
 
 # summary weighted pop
@@ -170,3 +170,13 @@ weighted_pop_sum <- weighted_pop %>%
 
 saveRDS(weighted_pop_sum, "data/public_health/weighted_pop_rank.rds")
 
+
+
+
+# accident data -----------
+
+accidents <- read.csv(paste0(drive_dir, "/data/BYU_AW_accident_data.csv")) %>%
+  group_by(uid) %>%
+  summarise(num_fatalities = sum(num_fatalities))
+
+saveRDS(accidents, "data/public_health/fatalities.rds")
