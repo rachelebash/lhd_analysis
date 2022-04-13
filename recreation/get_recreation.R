@@ -18,6 +18,7 @@ library(maps)
 library(gmapsdistance)
 library(lwgeom)
 library(ggforce)
+library(USAboundaries)
 
 #utility functions
 source("utils/find_google_drive.R")
@@ -38,10 +39,15 @@ lhd <- read.csv(paste0(drive_dir, "/data/Low Head Dam Inventory Final CIM 092920
 # read in atlas data
 atlas <- st_read(paste0(drive_dir, "/data/CO_Fishing_Atlas/AtlasPoints.shp"))
 
-# view points in atlas data
-ggplot(atlas) +
-  geom_sf()
+# read in state border
+CO <- map("state", regions = "Colorado")
+USAboundaries::us_states()
 
+# view points in atlas data
+p1 <- ggplot() +
+  geom_sf(data = atlas)
+# p1
+ggsave("recreation/plots/fishing_atlas.png")
 
 # municipality pop data --------------
 
@@ -50,14 +56,14 @@ ggplot(muni) +
   geom_sf()
 
 # google cloud api key
-# set.api.key("AIzaSyArQzKwhvLDFYK0XRL2GiZqw0U4JiLZykY")
+set.api.key()
 
 # transform lhd to st
 lhd <- st_as_sf(lhd, coords = c("longitude", "latitude"), crs = 4326)
 
 # plot lhds and muni boundaries
-ggplot() +
-  geom_sf(data = muni) + geom_sf(data = lhd)
+# ggplot() +
+#   geom_sf(data = muni) + geom_sf(data = lhd)
 
 
 # check to see if crs are equal
@@ -77,14 +83,19 @@ muni_results <- left_join(data.frame(id = results),muni,by = "id") %>%
 # df of every lhd and the distance, id, and name of the muni that is closest
 lhd_muni_join <- lhd %>%
   mutate(muni_id = results, muni_dist = lhd_muni, muni_city = muni_results$first_city) %>%
-  select(uid, muni_dist, muni_city)
+  select(uid, muni_dist, muni_city) %>%
+  drop_units()
 
 
+# plot of lhds and colored by distance to muni
+p2 <- ggplot() +
+  geom_sf(data = muni) +
+  geom_sf(data = lhd_muni_join, aes(color = muni_dist))
+ggsave("recreation/plots/muni_dist_from_lhd.png")
+  
 
-ggplot() +
-  geom_sf(data = lhd_muni_join, aes(fill = muni_dist)) +
-  ggforce::scale_x_unit()
-
+# save output
+lhd_muni_join %>% st_drop_geometry() %>% saveRDS(., "data/recreation/muni_dist.rds")
 
 
 # calculate google maps driving distance from each lhd to closest muni
