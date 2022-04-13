@@ -3,7 +3,7 @@
 
 # set up ------------------
 remove(list = ls())  # clear all workspace variables
-library(tidycensus)
+
 library(tidyverse)
 library(tigris)
 library(sf)
@@ -14,11 +14,9 @@ library(plotly)
 library(units)
 library(zoo)
 library(logger)
-library(maps)
 library(gmapsdistance)
-library(lwgeom)
-library(ggforce)
 library(USAboundaries)
+library(mapview)
 
 #utility functions
 source("utils/find_google_drive.R")
@@ -34,36 +32,55 @@ lhd <- read.csv(paste0(drive_dir, "/data/Low Head Dam Inventory Final CIM 092920
   select(-x, -x_1) %>%
   mutate(uid = row_number())
 
+# transform lhd to sf
+lhd <- st_as_sf(lhd, coords = c("longitude", "latitude"), crs = 4326)
+
+# read in state border
+CO <- USAboundaries::us_states(states = "CO")
+
+
 # atlas data ----------------
 
 # read in atlas data
-atlas <- st_read(paste0(drive_dir, "/data/CO_Fishing_Atlas/AtlasPoints.shp"))
+atlas <- st_read(paste0(drive_dir, "/data/CO_Fishing_Atlas/AtlasPoints.shp")) %>% 
+  st_as_sf() %>%
+  st_transform(., crs(lhd)) %>% #match crs to lhd df
+  st_zm() %>% # get rid of z dimension
+  janitor::clean_names() %>%
+  filter(loc_type == "Stream or River") #only view those on streams or rivers, remove ones on waterbodies
 
-# read in state border
-CO <- map("state", regions = "Colorado")
-USAboundaries::us_states()
 
 # view points in atlas data
 p1 <- ggplot() +
-  geom_sf(data = atlas)
-# p1
+  geom_sf(data = atlas, color = "red") +
+  geom_sf(data = CO, fill = NA) +
+  geom_sf(data = lhd)
+p1
 ggsave("recreation/plots/fishing_atlas.png")
+
+mapview(atlas_mi, col.regions = "red") + lhd_buffer
+
+
+# convert atlas points and lhd points to projection w/ imperial units
+lhd_mi <- st_transform(lhd, "+proj=utm +zone=13 +datum=NAD83 +units=mi") 
+atlas_mi <- st_transform(atlas, "+proj=utm +zone=13 +datum=NAD83 +units=mi")
+
+logger::log_info("create buffer with radius = 1 mile")
+lhd_buffer <- st_buffer(lhd_mi, 1)
+
+logger::log_info("find intersection of 1 mile buffer and atlas data")
+lhd_atlas <- st_intersection(lhd_buffer, atlas_mi)
+
+lhd_atlas_sum <- lhd_atlas %>%
+  group_by(uid) %>%
+  summarise(opp_family = count(as.factor(opp_family)))
+
 
 # municipality pop data --------------
 
 muni <- st_read(paste0(drive_dir, "/data/MuniBounds/MuniBounds.shp")) #crs 4326
 ggplot(muni) +
   geom_sf()
-
-# google cloud api key
-set.api.key()
-
-# transform lhd to st
-lhd <- st_as_sf(lhd, coords = c("longitude", "latitude"), crs = 4326)
-
-# plot lhds and muni boundaries
-# ggplot() +
-#   geom_sf(data = muni) + geom_sf(data = lhd)
 
 
 # check to see if crs are equal
@@ -90,7 +107,8 @@ lhd_muni_join <- lhd %>%
 # plot of lhds and colored by distance to muni
 p2 <- ggplot() +
   geom_sf(data = muni) +
-  geom_sf(data = lhd_muni_join, aes(color = muni_dist))
+  geom_sf(data = lhd_muni_join, aes(color = muni_dist)) + 
+  geom_sf(data = CO, fill = NA)
 ggsave("recreation/plots/muni_dist_from_lhd.png")
   
 
@@ -98,10 +116,13 @@ ggsave("recreation/plots/muni_dist_from_lhd.png")
 lhd_muni_join %>% st_drop_geometry() %>% saveRDS(., "data/recreation/muni_dist.rds")
 
 
+# google cloud api key
+# set.api.key(key)
+
 # calculate google maps driving distance from each lhd to closest muni
 lhd_muni_gdist <- gmapsdistance(origin = "lhd", destination = "muni_results", 
                                 combinations = "pairwise", mode = "driving", key = get.api.key())
-  # did not work
+  # did not work - route not found - perhaps because some are pretty rural?
 # Currently, in the free version the limits are given by: 
 # 1. 2,500 free elements per day, calculated as the sum of client-side and server-side queries. 
 # 2. Maximum of 25 origins or 25 destinations per request. 
