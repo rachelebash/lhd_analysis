@@ -1,4 +1,6 @@
+^public_health/plots$
 
+^recreation/plots$
 
 ## Core latex/pdflatex auxiliary files:
 *.aux
