@@ -2,6 +2,11 @@
 
 ^recreation/plots$
 
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
 ## Core latex/pdflatex auxiliary files:
 *.aux
 *.lof
