@@ -180,3 +180,42 @@ accidents <- read.csv(paste0(drive_dir, "/data/BYU_AW_accident_data.csv")) %>%
   summarise(num_fatalities = sum(num_fatalities))
 
 saveRDS(accidents, "data/public_health/fatalities.rds")
+
+
+# fishing atlas data ----------------
+
+# read in atlas data
+atlas <- st_read(paste0(drive_dir, "/data/CO_Fishing_Atlas/AtlasPoints.shp")) %>% 
+  st_as_sf() %>%
+  st_transform(., crs(lhd)) %>% #match crs to lhd df
+  st_zm() %>% # get rid of z dimension
+  janitor::clean_names() %>%
+  filter(loc_type == "Stream or River") #only view those on streams or rivers, remove ones on waterbodies
+
+
+# view points in atlas data
+# mapview(atlas_mi, col.regions = "red") + lhd_buffer
+
+
+# convert atlas points and lhd points to projection w/ imperial units
+lhd_mi <- st_transform(lhd, "+proj=utm +zone=13 +datum=NAD83 +units=mi") 
+atlas_mi <- st_transform(atlas, "+proj=utm +zone=13 +datum=NAD83 +units=mi")
+
+logger::log_info("create buffer with radius = 1 mile")
+lhd_buffer <- st_buffer(lhd_mi, 1)
+
+logger::log_info("find intersection of 1 mile buffer and atlas data")
+lhd_atlas <- st_intersection(lhd_buffer, atlas_mi)
+
+n_fishing_spots <- lhd_atlas %>%
+  group_by(uid) %>%
+  summarise(num_fishing_spots = n_distinct(prop_name)) %>% 
+  st_drop_geometry()
+
+lhd_atlas_counts <- lhd_atlas %>%
+  group_by(uid) %>%
+  summarise_at(c("stocked", "access_eas", "fish_press"), ~paste(.x, collapse ="; "))
+
+lhd_atlas_sum <- full_join(n_fishing_spots, lhd_atlas_counts)
+
+saveRDS(lhd_atlas_sum, "data/public_health/lhd_atlas_sum.rds")
