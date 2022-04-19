@@ -71,9 +71,18 @@ lhd_buffer <- st_buffer(lhd_mi, 1)
 logger::log_info("find intersection of 1 mile buffer and atlas data")
 lhd_atlas <- st_intersection(lhd_buffer, atlas_mi)
 
-lhd_atlas_sum <- lhd_atlas %>%
+n_fishing_spots <- lhd_atlas %>%
   group_by(uid) %>%
-  summarise(opp_family = count(as.factor(opp_family)))
+  summarise(num_fishing_spots = n_distinct(prop_name)) %>% 
+  st_drop_geometry()
+
+lhd_atlas_counts <- lhd_atlas %>%
+  group_by(uid) %>%
+  summarise_at(c("stocked", "access_eas", "fish_press"), ~paste(.x, collapse ="; "))
+
+lhd_atlas_sum <- full_join(n_fishing_spots, lhd_atlas_counts)
+
+saveRDS(lhd_atlas_sum, "data/recreation/lhd_atlas_sum.rds")
 
 
 # municipality pop data --------------
