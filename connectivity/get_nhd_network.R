@@ -2,7 +2,7 @@
 # Retrieve NHDplus NHD flowlines & waterbodies data for LHD locations
 
 rm(list = ls())
-
+ 
 library(tidyverse)
 library(sf)
 library(dataRetrieval)
