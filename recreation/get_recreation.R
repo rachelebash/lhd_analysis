@@ -78,7 +78,8 @@ n_fishing_spots <- lhd_atlas %>%
 
 lhd_atlas_counts <- lhd_atlas %>%
   group_by(uid) %>%
-  summarise_at(c("stocked", "access_eas", "fish_press"), ~paste(.x, collapse ="; "))
+  summarise_at(c("stocked", "access_eas", "fish_press"), ~paste(.x, collapse ="; ")) %>%
+  st_drop_geometry()
 
 lhd_atlas_sum <- full_join(n_fishing_spots, lhd_atlas_counts)
 
