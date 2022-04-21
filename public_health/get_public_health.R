@@ -111,9 +111,9 @@ lhd_pop_summary <- lhd_pop_summary %>%
 p1 <- ggplot(lhd_pop_summary) +
   geom_line(mapping = aes(x = buffer, y = total_pop, group = factor(uid), col = uid), 
             color = "grey", size = 0.3) +
-#  geom_line(subset(lhd_pop_summary, uid %in% c("343")), 
-#            mapping = aes(x = buffer, y = total_pop, group = factor(uid), col = uid), 
-#            color = "pink", size = 0.6) +
+  geom_line(subset(lhd_pop_summary, uid %in% c("770")), 
+            mapping = aes(x = buffer, y = total_pop, group = factor(uid), col = uid), 
+            color = "pink", size = 0.6) +
   labs(x = "Buffer radius (mi)", y = "Total Population")
 
 ggsave("public_health/plots/radius_v_pop.png")
@@ -121,7 +121,7 @@ ggsave("public_health/plots/radius_v_pop.png")
 p2 <- ggplot(lhd_pop_summary) +
   geom_line(mapping = aes(x = buffer, y = total_pop_norm, group = factor(uid), col = uid), 
             color = "grey", size = 0.3) +
-  #  geom_line(subset(lhd_pop_summary, uid %in% c("343")), 
+  #  geom_line(subset(lhd_pop_summary, uid %in% c("39")), 
   #            mapping = aes(x = buffer, y = total_pop_norm, group = factor(uid), col = uid), 
   #            color = "pink", size = 0.6) +
   labs(x = "Buffer radius (mi)", y = "Total Population Normalized")
@@ -147,11 +147,12 @@ saveRDS(lhd_pop_interp, "data/public_health/lhd_pop_summary.rds")
 
 
 # weight radius at p'0.5 and then multiply by 1/2 of total population
+# 50-radius_0.5 because we want lhds with lots of pop close to them to have highest weighted pop
 weighted_pop <- lhd_pop_interp %>%
   st_drop_geometry() %>%
   filter(buffer == 50) %>%
   summarise(uid = uid, total_pop = total_pop, 
-            radius_0.5 = radius_0.5, wpop = radius_0.5*total_pop/2)
+            radius_0.5 = radius_0.5, wpop = (50-radius_0.5)*total_pop/2)
 
 
 # plot histogram showing weighted pop distribution
@@ -160,7 +161,7 @@ p3 <- ggplot(weighted_pop) +
   labs(x = "Weighted pop = Total pop x radius at 0.5 pop", y = "# LHDs") +
   xlim(0,70000000)
 
-ggsave("public_health/plots/weighted_pop_hist2.png")
+ggsave("public_health/plots/weighted_pop_hist.png")
 
 
 # summary weighted pop
