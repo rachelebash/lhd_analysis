@@ -1,3 +1,8 @@
+
+# ******************************
+# ---- Population functions ----
+# ******************************
+
 # Call population census block data using tidycensus package
 get_pop <- function(
                 geography, 
@@ -73,6 +78,10 @@ get_pop <- function(
 
 #list of states surrounding CO for population census block data
 all_states <- c("04", "08", "20", "31", "35", "40", "49", "56")
+
+# **************************************
+# ---- Stream linesegment functions ---- 
+# **************************************
 
 # Snap points to nearest line segment within a max distance
 st_snap_points = function(
@@ -252,23 +261,18 @@ segment_distance <- function(
   
 }
 
-# Standardization methods
+# ***********************************
+# ---- Standardization functions ----
+# ***********************************
 
-# Normalize
+# Min-Max Normalization
 normalize <- function(x) {
   return ((x - min(x)) / (max(x) - min(x)))
 }
 
-stdize = function(x, ...) {(x - min(x, ...)) / (max(x, ...) - min(x, ...))}
-
 # Robust scalar normalization
 robust_scalar<- function(x){
   (x- median(x)) /(quantile(x,probs = .75)-quantile(x,probs = .25))
-}
-
-# Min-Max Normalization
-norm_minmax <- function(x){
-  (x- min(x)) /(max(x)-min(x))
 }
 
 # Mean Normalization

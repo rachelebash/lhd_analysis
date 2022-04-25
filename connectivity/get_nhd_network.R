@@ -238,3 +238,4 @@ mapview::mapview(networks) + lhd_pt
 
 # save to data/lhd/
 saveRDS(networks, "data/spatial/networks/lhd_nhdplus_networks.rds")
+
