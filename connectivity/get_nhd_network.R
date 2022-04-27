@@ -14,6 +14,7 @@ source("utils/data_utils.R")
 # *******************
 # ---- Load data ---- 
 # *******************
+ 
 
 lhd_path <- "data/lhd/Low Head Dam Inventory Final CIM 092920 - Inventory.csv"
 
@@ -169,35 +170,36 @@ comid_df       <- readRDS("data/lhd/lhd_comid.rds")
 # Flowlines with lHD snapped points
 fline_pts      <- readRDS("data/spatial/points/lhd_flowline_points.rds")
 
-# Start of each mainstem (Unique LevelPathI in NHDplus)
+# Start of each mainstem (Unique gnis ID in NHDplus)
 start_fline <-
   fline_pts %>%
   group_by(LevelPathI) %>%
   arrange(Hydroseq, .by_group = T) %>% 
-  slice_head() %>% 
+  slice_head() %>%
   ungroup()
 
 # Empty list to iterate through
 net_lst <- list()
+# i <- 13
 
 for (i in 1:nrow(start_fline)) {
   
   # Most downstream comind on main stem
   downstream_comid    <- as.integer(start_fline$COMID[i])
-  
+
   # GNIS Stream ID in LHD dataset
-  stream_id        <- as.character(start_fline$gnis_id[i])  
+  stream_id           <- as.character(start_fline$gnis_id[i])  
   
   # GNIS Stream name in LHD dataset
-  stream_name      <- as.character(start_fline$gnis_name[i])
+  stream_name         <- as.character(start_fline$gnis_name[i])
   
-  logger::log_info("Retrieving upstream mainstem network starting at:\nCOMID: {downstream_comid}")
+  logger::log_info("Retrieving upstream mainstem network starting at:\nCOMID: {downstream_comid}\nRiver: {stream_name}")
   
   # Retrieve upstream network for furthest downstream comid
   um_net <- navigate_network(
     start       = downstream_comid, 
     mode        = "UM",
-    distance_km = 2500
+    distance_km = 3000
   ) %>%
     nhdplusTools::align_nhdplus_names() 
   
@@ -211,7 +213,8 @@ for (i in 1:nrow(start_fline)) {
       WBAREACOMI  = as.character(WBAREACOMI),
       WBAREACOMI  = case_when(
         WBAREACOMI %in% c(
-          "120049365", "-9998", "120049372", "120049341", "1531547",
+          "120049365", "-9998", "120049372", "120049341", "1531547", "120049349", 
+          "3112447", "3112435", "3112443", "3112433", "120049339", "120049817",
           "3241855", "120049349", "120049817",  "18376200", "9768032") ~ "0",
         TRUE                                                           ~ WBAREACOMI
       )
@@ -226,6 +229,7 @@ for (i in 1:nrow(start_fline)) {
     filter(WBAREACOMI == 0) %>% 
     mutate(across(where(is.numeric), as.character))
   
+  
   net_lst[[i]] <- split_df
 
 }
@@ -234,7 +238,7 @@ for (i in 1:nrow(start_fline)) {
 networks <- bind_rows(net_lst)
 
 # Map View
-mapview::mapview(networks) + lhd_pt
+mapview::mapview(networks) + fline_pts
 
 # save to data/lhd/
 saveRDS(networks, "data/spatial/networks/lhd_nhdplus_networks.rds")
