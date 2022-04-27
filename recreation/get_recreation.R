@@ -30,7 +30,8 @@ options(scipen = 1000) # get rid of scientific notation
 lhd <- read.csv(paste0(drive_dir, "/data/Low Head Dam Inventory Final CIM 092920 - Inventory.csv")) %>%
   janitor::clean_names() %>%
   select(-x, -x_1) %>%
-  mutate(uid = row_number())
+  mutate(uid = row_number())  %>%
+  select(uid, everything())
 
 # transform lhd to sf
 lhd <- st_as_sf(lhd, coords = c("longitude", "latitude"), crs = 4326)
@@ -126,18 +127,15 @@ ggsave("recreation/plots/muni_dist_from_lhd.png")
 lhd_muni_join %>% st_drop_geometry() %>% saveRDS(., "data/recreation/muni_dist.rds")
 
 
-# google cloud api key
-# set.api.key(key)
+# aw reaches -------------
 
-# calculate google maps driving distance from each lhd to closest muni
-lhd_muni_gdist <- gmapsdistance(origin = "lhd", destination = "muni_results", 
-                                combinations = "pairwise", mode = "driving", key = get.api.key())
-  # did not work - route not found - perhaps because some are pretty rural?
-# Currently, in the free version the limits are given by: 
-# 1. 2,500 free elements per day, calculated as the sum of client-side and server-side queries. 
-# 2. Maximum of 25 origins or 25 destinations per request. 
-# 3. 100 elements per request. 
-# 4. 100 elements per second, calculated as the sum of client-side and server-side queries.
+#read in aw reaches
+aw <- st_read(paste0(drive_dir, "/data/aw_reach_segments/co_reach_segments.shp"))
 
 
 
+
+# gold medal reaches -------------
+gold <- st_read(paste0(drive_dir, "/data/CPW_GoldMedalWaters/GoldMedalStreams02142022.shp"))
+
+mapview(aw, col.regions = "red") + CO + gold
