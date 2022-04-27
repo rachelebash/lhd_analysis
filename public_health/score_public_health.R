@@ -1,0 +1,90 @@
+# scoring impact categories
+
+# Rachel Bash 4/20/22
+
+# set up ------------------
+remove(list = ls())  # clear all workspace variables
+
+library(tidyverse)
+library(sf)
+library(sp)
+library(rgeos)
+library(raster)
+library(plotly)
+library(zoo)
+library(logger)
+library(USAboundaries)
+library(mapview)
+
+
+#utility functions
+source("utils/find_google_drive.R")
+source("utils/data_utils.R")
+
+# read in lhd data -----------
+lhd <- read.csv(paste0(drive_dir, "/data/Low Head Dam Inventory Final CIM 092920 - Inventory.csv")) %>%
+  janitor::clean_names() %>%
+  select(-x, -x_1) %>%
+  mutate(uid = row_number()) %>%
+  select(uid, everything())
+
+# read in all data for public health
+paths <- list.files(path = here::here("data/public_health/"), pattern = "\\.rds", full.names = T)
+
+for(i in 1:length(paths)) {
+  names <- gsub(pattern = "\\.rds$", replacement = "", x = basename(paths[i]))
+  print(names)
+  assign(names, readRDS(paths[i]))
+}
+
+# join all public health categories to lhd list
+all_public_health <- lhd %>% 
+  left_join(fatalities, by = "uid") %>%
+  left_join(lhd_atlas_sum, by = "uid") %>%
+  left_join(weighted_pop_rank, by = "uid")
+
+# create score
+score_all <- all_public_health %>%
+  mutate(fatal_score = ifelse(is.na(num_fatalities),0,3),
+         fishing_score = ifelse(is.na(num_fishing_spots),0,1),
+         pop_score = 1/rank,
+         structure_score = ifelse(structure_category == "Diversion Dam", 3, 
+                                  ifelse(structure_category == "Grade Control Structure", 2,
+                                         ifelse(structure_category == "Recreation", 1, "NA"))),
+         structure_score = as.numeric(structure_score), 
+         tot_score = 3*fatal_score + fishing_score + pop_score + structure_score,
+            structure_category = structure_category)
+
+score <- score_all %>%
+  select(uid, tot_score)
+
+score_top10 <- score_all %>%
+  arrange(desc(tot_score)) %>%
+  slice(1:10) %>%
+  select(uid, num_fatalities, structure_category, rank, num_fishing_spots, tot_score)
+
+write.csv(score_top10, "data/public_health/public_health_score_top10.csv", row.names = FALSE)
+  
+
+# visualise scoring
+summary(score)
+ggplot(data = score, aes(tot_score)) +
+  geom_histogram(binwidth = 1) +
+  scale_x_continuous(breaks = seq(0,15,1)) +
+  theme(text = element_text(size = 16)) +
+  labs(x = "Total Score", y = "# LHDs")
+ggsave("public_health/plots/score_hist.png", height = 6, width = 6)
+
+ggplot(data = score_all, aes(x = structure_category, y = tot_score)) +
+  geom_jitter(aes(x = structure_category), alpha = 0.2, position = position_jitter(0.2), size = 1.8) +
+  scale_y_continuous(breaks = seq(0,15,1))  +
+  theme(text = element_text(size = 16)) +
+  labs(x = "Structure Category", y = "Total Score")
+  
+ggsave("public_health/plots/score_boxplot.png", height = 6, width = 6)
+  
+
+  
+saveRDS(score, "data/public_health/public_health_score.rds")
+
+
