@@ -132,7 +132,7 @@ lhd_muni_join %>% st_drop_geometry() %>% saveRDS(., "data/recreation/muni_dist.r
 #read in aw reaches
 aw <- st_read(paste0(drive_dir, "/data/aw_reach_segments/co_reach_segments.shp"))
 
-
+mapview(aw)
 
 
 # gold medal reaches -------------
