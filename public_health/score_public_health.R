@@ -41,19 +41,18 @@ for(i in 1:length(paths)) {
 all_public_health <- lhd %>% 
   left_join(fatalities, by = "uid") %>%
   left_join(lhd_atlas_sum, by = "uid") %>%
-  left_join(weighted_pop_rank, by = "uid")
+  left_join(weighted_pop_rank, by = "uid") %>%
+  filter(structure_category != "Recreation") # take out recreation dams
+
+#normalize function
+norm <- function(x){(x-min(x))/(max(x)-min(x))}
 
 # create score
 score_all <- all_public_health %>%
-  mutate(fatal_score = ifelse(is.na(num_fatalities),0,3),
+  mutate(fatal_score = ifelse(is.na(num_fatalities),0,num_fatalities),
          fishing_score = ifelse(is.na(num_fishing_spots),0,1),
-         pop_score = 1/rank,
-         structure_score = ifelse(structure_category == "Diversion Dam", 3, 
-                                  ifelse(structure_category == "Grade Control Structure", 2,
-                                         ifelse(structure_category == "Recreation", 1, "NA"))),
-         structure_score = as.numeric(structure_score), 
-         tot_score = 3*fatal_score + fishing_score + pop_score + structure_score,
-            structure_category = structure_category)
+         pop_score = 1-norm(rank),
+         tot_score = fatal_score + fishing_score + pop_score)
 
 score <- score_all %>%
   select(uid, tot_score)
