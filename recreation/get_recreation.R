@@ -17,6 +17,7 @@ library(logger)
 library(gmapsdistance)
 library(USAboundaries)
 library(mapview)
+library(nhdplusTools)
 
 #utility functions
 source("utils/find_google_drive.R")
@@ -31,10 +32,23 @@ lhd <- read.csv(paste0(drive_dir, "/data/Low Head Dam Inventory Final CIM 092920
   janitor::clean_names() %>%
   select(-x, -x_1) %>%
   mutate(uid = row_number())  %>%
-  select(uid, everything())
+  select(uid, everything()) %>%
+  st_as_sf(., coords = c("longitude", "latitude"), crs = 4326)
 
-# transform lhd to sf
-lhd <- st_as_sf(lhd, coords = c("longitude", "latitude"), crs = 4326)
+# Convert LHD dataframe to spatial points  using sf package
+lhd_pt <- readr::read_csv("data/lhd/Low Head Dam Inventory Final CIM 092920 - Inventory.csv") %>%
+  janitor::clean_names() %>% 
+  st_as_sf(
+  coords = c("longitude", "latitude"),
+  crs    = 4326) %>%
+  st_transform(5070) %>%  # to change to miles
+  rename("lhd_id" = "id") %>%
+  mutate(new_id = 1:dplyr::n()) %>%
+  relocate(new_id) %>%
+  select(-x11,-x12)
+
+
+
 
 # read in state border
 CO <- USAboundaries::us_states(states = "CO")
@@ -59,7 +73,7 @@ p1 <- ggplot() +
 p1
 ggsave("recreation/plots/fishing_atlas.png")
 
-mapview(atlas_mi, col.regions = "red") + lhd_buffer
+
 
 
 # convert atlas points and lhd points to projection w/ imperial units
@@ -71,6 +85,8 @@ lhd_buffer <- st_buffer(lhd_mi, 1)
 
 logger::log_info("find intersection of 1 mile buffer and atlas data")
 lhd_atlas <- st_intersection(lhd_buffer, atlas_mi)
+
+mapview(atlas_mi, col.regions = "red") + lhd_buffer
 
 n_fishing_spots <- lhd_atlas %>%
   group_by(uid) %>%
@@ -132,10 +148,41 @@ lhd_muni_join %>% st_drop_geometry() %>% saveRDS(., "data/recreation/muni_dist.r
 #read in aw reaches
 aw <- st_read(paste0(drive_dir, "/data/aw_reach_segments/co_reach_segments.shp"))
 
-mapview(aw)
+aw_comid <- get_nhdplus()
+
+
 
 
 # gold medal reaches -------------
-gold <- st_read(paste0(drive_dir, "/data/CPW_GoldMedalWaters/GoldMedalStreams02142022.shp"))
+gold <- st_read(paste0(drive_dir, "/data/CPW_GoldMedalWaters/GoldMedalStreams02142022.shp")) %>%
+  st_transform(5070) %>%
+  mutate(lengths = st_length(geometry))
 
-mapview(aw, col.regions = "red") + CO + gold
+mapview(aw, col.regions = "red", col = "red") + mapview(gold, col.regions = "blue") + 
+  mapview(lhd_pt)
+  
+mapview(gold, col.regions = "blue") + mapview(dat, col.regions = "red", col = "red") +
+  mapview(lhd_pt)
+
+dat <- get_nhdplus(AOI = gold$geometry)
+
+mapview(dat)
+
+salida_us <- unlist(connect$us_comid_list[146])
+salida_ds <- unlist(connect$ds_comid_list[146])
+
+dat_us <- dat %>% filter(comid %in% salida_us) %>%
+  summarise(us_length = sum(lengthkm))
+dat_ds <- dat %>% filter(comid %in% salida_ds)
+
+test <- st_intersection(st_buffer(lhd_pt, 5), gold)
+
+
+
+mapview(test, col.regions = "red", col = "red") + mapview(gold, col.regions = "blue")
+
+# connectivity ----------------
+
+connect <- readRDS("data/spatial/networks/connectivity/lhd_network_connectivity.rds")
+
+
