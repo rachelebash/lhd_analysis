@@ -146,10 +146,31 @@ lhd_muni_join %>% st_drop_geometry() %>% saveRDS(., "data/recreation/muni_dist.r
 # aw reaches -------------
 
 #read in aw reaches
-aw <- st_read(paste0(drive_dir, "/data/aw_reach_segments/co_reach_segments.shp"))
+aw <- st_read(paste0(drive_dir, "/data/aw_reach_segments/co_reach_segments.shp")) %>%
+  st_transform(5070) %>%
+  mutate(lengths = st_length(geometry))
 
-aw_comid <- get_nhdplus()
+# create buffer around lhds of 500 meters
+lhd_buff <- st_buffer(lhd_pt, 500)
 
+
+# find lhds on aw reaches within 500 meters of lhds
+aw_lhd <- st_intersection(lhd_buff, aw)
+
+# map of lhd buffers and aw reaches
+mapview(aw_lhd, col.regions = "red", col = "red") + mapview(aw, col.regions = "blue") +
+  mapview(lhd_buff, col.regions = "green", col = "green")
+
+# save gold_lhd data
+save_aw <- aw_lhd %>% 
+  select(new_id) %>%
+  mutate(aw = 1) %>%
+  st_drop_geometry() %>%
+  distinct() %>%
+  right_join(., lhd_pt, by = "new_id") %>%
+  mutate(aw = if_else(is.na(aw), 0, aw))
+
+saveRDS(save_aw, "data/recreation/aw_reaches.rds")
 
 
 
@@ -158,31 +179,27 @@ gold <- st_read(paste0(drive_dir, "/data/CPW_GoldMedalWaters/GoldMedalStreams021
   st_transform(5070) %>%
   mutate(lengths = st_length(geometry))
 
-mapview(aw, col.regions = "red", col = "red") + mapview(gold, col.regions = "blue") + 
-  mapview(lhd_pt)
-  
-mapview(gold, col.regions = "blue") + mapview(dat, col.regions = "red", col = "red") +
-  mapview(lhd_pt)
 
-dat <- get_nhdplus(AOI = gold$geometry)
 
-mapview(dat)
+# find lhds on gold medal waters within 500 meters of lhds
+gold_lhd <- st_intersection(lhd_buff, gold)
 
-salida_us <- unlist(connect$us_comid_list[146])
-salida_ds <- unlist(connect$ds_comid_list[146])
 
-dat_us <- dat %>% filter(comid %in% salida_us) %>%
-  summarise(us_length = sum(lengthkm))
-dat_ds <- dat %>% filter(comid %in% salida_ds)
-
-test <- st_intersection(st_buffer(lhd_pt, 5), gold)
+# map of lhd buffers and gold medal waters
+mapview(gold_lhd, col.regions = "red", col = "red") + mapview(gold, col.regions = "blue") +
+  mapview(lhd_buff, col.regions = "green", col = "green")
 
 
 
-mapview(test, col.regions = "red", col = "red") + mapview(gold, col.regions = "blue")
+# save gold_lhd data
+save_gold <- gold_lhd %>% 
+  select(new_id) %>%
+  mutate(gold = 1) %>%
+  st_drop_geometry() %>%
+  distinct() %>%
+  right_join(., lhd_pt, by = "new_id") %>%
+  mutate(gold = if_else(is.na(gold), 0, gold))
 
-# connectivity ----------------
 
-connect <- readRDS("data/spatial/networks/connectivity/lhd_network_connectivity.rds")
-
+saveRDS(save_gold, "data/recreation/gold_reaches.rds")
 

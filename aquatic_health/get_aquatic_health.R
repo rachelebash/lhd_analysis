@@ -93,13 +93,14 @@ dat <- readxl::read_xlsx(paste0(drive_dir, "/data/DATA_RachelBash_Lynker_0413202
 # HUC 12 data ---------
 
 huc12 <- st_read(paste0(drive_dir, "/data/WBDHU12/WBDHU12.shp")) %>%
-  st_transform(5070) 
+  st_transform(5070) %>%
+  janitor::clean_names() %>%
+  mutate(huc12 = as.numeric(huc12))
 
 lhd_huc <- st_intersection(lhd_pt, huc12) %>% 
-  select(new_id, HUC12, Name) %>% 
-  st_drop_geometry() %>%
-  mutate(HUC12 = as.numeric(HUC12)) %>%
-  janitor::clean_names()
+  select(new_id, huc12, name) %>% 
+  st_drop_geometry()
+
 
 # join huc12 data and dat
 
@@ -107,3 +108,9 @@ species_lhd <- left_join(lhd_huc, dat, by = c("huc12"))
 
 # 280 missing values for huc12 species
 
+#visualize - you can see that there are missing sgn values for hucs with lhds in them
+
+dat_huc <- left_join(dat, huc12, by = "huc12") %>%
+  st_as_sf()
+
+mapview(dat_huc) + mapview(lhd_pt)

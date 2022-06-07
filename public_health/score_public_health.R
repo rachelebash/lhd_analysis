@@ -21,12 +21,17 @@ library(mapview)
 source("utils/find_google_drive.R")
 source("utils/data_utils.R")
 
-# read in lhd data -----------
-lhd <- read.csv(paste0(drive_dir, "/data/Low Head Dam Inventory Final CIM 092920 - Inventory.csv")) %>%
-  janitor::clean_names() %>%
-  select(-x, -x_1) %>%
-  mutate(uid = row_number()) %>%
-  select(uid, everything())
+# Convert LHD dataframe to spatial points  using sf package
+lhd_pt <- readr::read_csv("data/lhd/Low Head Dam Inventory Final CIM 092920 - Inventory.csv") %>%
+  janitor::clean_names() %>% 
+  st_as_sf(
+    coords = c("longitude", "latitude"),
+    crs    = 4326) %>%
+  st_transform(5070) %>%  # to change to miles
+  rename("lhd_id" = "id") %>%
+  mutate(new_id = 1:dplyr::n()) %>%
+  relocate(new_id) %>%
+  select(-x11,-x12)
 
 # read in all data for public health
 paths <- list.files(path = here::here("data/public_health/"), pattern = "\\.rds", full.names = T)
@@ -38,43 +43,44 @@ for(i in 1:length(paths)) {
 }
 
 # join all public health categories to lhd list
-all_public_health <- lhd %>% 
-  left_join(fatalities, by = "uid") %>%
-  left_join(lhd_atlas_sum, by = "uid") %>%
-  left_join(weighted_pop_rank, by = "uid") %>%
+all_public_health <- lhd_pt %>% 
+  left_join(fatalities, by = c("new_id" = "uid")) %>%
+  left_join(lhd_atlas_sum, by = c("new_id" = "uid")) %>%
+  left_join(weighted_pop_rank, by = c("new_id" = "uid")) %>%
   filter(structure_category != "Recreation") # take out recreation dams
 
 #normalize function
 norm <- function(x){(x-min(x))/(max(x)-min(x))}
 
 # create score
+
 score_all <- all_public_health %>%
   mutate(fatal_score = ifelse(is.na(num_fatalities),0,num_fatalities),
          fishing_score = ifelse(is.na(num_fishing_spots),0,1),
          pop_score = 1-norm(rank),
-         tot_score = fatal_score + fishing_score + pop_score)
+         ph_tot_score = fatal_score + fishing_score + pop_score)
 
 score <- score_all %>%
-  select(uid, tot_score)
+  select(new_id, ph_tot_score)
 
 score_top10 <- score_all %>%
-  arrange(desc(tot_score)) %>%
+  arrange(desc(ph_tot_score)) %>%
   slice(1:10) %>%
-  select(uid, num_fatalities, structure_category, rank, num_fishing_spots, tot_score)
+  select(new_id, num_fatalities, structure_category, rank, num_fishing_spots, ph_tot_score)
 
-write.csv(score_top10, "data/public_health/public_health_score_top10.csv", row.names = FALSE)
+write.csv(score_top10, "data/scores/public_health_score_top10.csv", row.names = FALSE)
   
 
 # visualise scoring
 summary(score)
-ggplot(data = score, aes(tot_score)) +
-  geom_histogram(binwidth = 1) +
+ggplot(data = score, aes(ph_tot_score)) +
+  geom_histogram(binwidth = 0.1) +
   scale_x_continuous(breaks = seq(0,15,1)) +
   theme(text = element_text(size = 16)) +
   labs(x = "Total Score", y = "# LHDs")
 ggsave("public_health/plots/score_hist.png", height = 6, width = 6)
 
-ggplot(data = score_all, aes(x = structure_category, y = tot_score)) +
+ggplot(data = score_all, aes(x = structure_category, y = ph_tot_score)) +
   geom_jitter(aes(x = structure_category), alpha = 0.2, position = position_jitter(0.2), size = 1.8) +
   scale_y_continuous(breaks = seq(0,15,1))  +
   theme(text = element_text(size = 16)) +
@@ -84,6 +90,6 @@ ggsave("public_health/plots/score_boxplot.png", height = 6, width = 6)
   
 
   
-saveRDS(score, "data/public_health/public_health_score.rds")
+saveRDS(score, "data/scores/public_health_score.rds")
 
 
