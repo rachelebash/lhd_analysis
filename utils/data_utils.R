@@ -291,9 +291,13 @@ seperate_trees <- function(lines, predicate = "intersects") {
 }
 
 # Prepare flowlines for use w/ sfnetworks
-prep_flines <- function(flowlines, split = TRUE) {
+prep_flines <- function(
+  flowlines,
+  split    = TRUE, 
+  channels = FALSE
+  ) {
   logger::log_info("Cleaning network...")
-  
+
   # trim waterbody out of network
   trim <- 
     flowlines %>% 
@@ -315,28 +319,28 @@ prep_flines <- function(flowlines, split = TRUE) {
   
   # Waterbody points
   # group by waterbody & return centroid of most downstream pt for each waterbody
-  wb_pts <-
-    trim %>% 
-    dplyr::filter(wbareacomi != 0) %>% 
-    dplyr::group_by(wbareacomi) %>%
-    dplyr::arrange(hydroseq, .by_group = T) %>%
-    dplyr::slice_head() %>%
-    sf::st_centroid() %>% 
-    dplyr::ungroup() %>% 
-    # group_by(comid) %>% 
-    dplyr::mutate(
-      new_id       = paste0("waterbody_", row_number()),
-      comid        = as.character(comid),
-      hydroseq     = as.character(hydroseq),
-      streamleve   = as.character(streamleve),
-      streamorde   = as.character(streamorde ),
-      levelpathi   = as.character(levelpathi )
-    ) %>% 
-    dplyr::select(
-      new_id, comid, wbareacomi, hydroseq, streamleve,
-      streamorde, streamcalc, levelpathi, wbareatype, lakefract, surfarea
-    ) %>% 
-    dplyr::ungroup()
+  # wb_pts <-
+  #   trim %>% 
+  #   dplyr::filter(wbareacomi != 0) %>% 
+  #   dplyr::group_by(wbareacomi) %>%
+  #   dplyr::arrange(hydroseq, .by_group = T) %>%
+  #   dplyr::slice_head() %>%
+  #   sf::st_centroid() %>% 
+  #   dplyr::ungroup() %>% 
+  #   # group_by(comid) %>% 
+  #   dplyr::mutate(
+  #     new_id       = paste0("waterbody_", row_number()),
+  #     comid        = as.character(comid),
+  #     hydroseq     = as.character(hydroseq),
+  #     streamleve   = as.character(streamleve),
+  #     streamorde   = as.character(streamorde ),
+  #     levelpathi   = as.character(levelpathi )
+  #   ) %>% 
+  #   dplyr::select(
+  #     new_id, comid, wbareacomi, hydroseq, streamleve,
+  #     streamorde, streamcalc, levelpathi, wbareatype, lakefract, surfarea
+  #   ) %>% 
+  #   dplyr::ungroup()
   
   logger::log_info("Sorting network...")
   
@@ -362,42 +366,99 @@ prep_flines <- function(flowlines, split = TRUE) {
   
   logger::log_info("Topological sorting")
   if (split == TRUE) {
-    # Topologically sorted flowline network
-    flines <-
-      ut_sort %>% 
-      dplyr::select(comid, tocomid, topo_sort, levelpath ,                   
-                    streamleve, streamorde, streamcalc, hydroseq, 
-                    terminalID, reachcode, geometry) %>%
-      dplyr::arrange(topo_sort)
+      # Topologically sorted flowline network
+      flines <-
+        ut_sort %>% 
+        dplyr::select(comid, tocomid, topo_sort, levelpath ,                   
+                      streamleve, streamorde, streamcalc, hydroseq, 
+                      terminalID, reachcode, geometry) %>%
+        dplyr::arrange(topo_sort)
+      
+      logger::log_info("Rounding geometry precision")
+      
+      # round edge precision to make sure edges connect exactly
+      sf::st_geometry(flines) <-
+        sf::st_geometry(flines) %>%
+        lapply(function(x) round(x, 0)) %>%
+        sf::st_sfc(crs = sf::st_crs(flines))
+      
+      return(flines)
+      
+  } else if(split == FALSE & channels == FALSE) {
     
-    logger::log_info("Rounding geometry precision")
+      # Topologically sorted flowline network
+      flines <-
+        ut_sort %>% 
+        dplyr::select(comid, tocomid, topo_sort, levelpath ,                   
+                      streamleve, streamorde, streamcalc,
+                      hydroseq, reachcode, geometry) %>%
+        dplyr::arrange(topo_sort)
+      
+      logger::log_info("Rounding geometry precision")
+      
+      # round edge precision to make sure edges connect exactly
+      sf::st_geometry(flines) <-
+        sf::st_geometry(flines) %>%
+        lapply(function(x) round(x, 0)) %>%
+        sf::st_sfc(crs = sf::st_crs(flines))
+      
+      return(flines)
     
-    # round edge precision to make sure edges connect exactly
-    sf::st_geometry(flines) <-
-      sf::st_geometry(flines) %>%
-      lapply(function(x) round(x, 0)) %>%
-      sf::st_sfc(crs = sf::st_crs(flines))
+  } else if(split == FALSE & channels == TRUE) {
     
-    return(flines)
-  } else if(split == FALSE) {
+      logger::log_info("Keeping FCODE/FTYPE")
     
-    # Topologically sorted flowline network
-    flines <-
-      ut_sort %>% 
-      dplyr::select(comid, tocomid, topo_sort, levelpath ,                   
-                    streamleve, streamorde, streamcalc,
-                    hydroseq, reachcode, geometry) %>%
-      dplyr::arrange(topo_sort)
+      # Topologically sorted flowline network
+      flines <-
+        ut_sort %>% 
+        dplyr::select(comid, tocomid, topo_sort, levelpath ,                   
+                      streamleve, streamorde, streamcalc,
+                      hydroseq, reachcode, ftype, fcode, geometry) %>%
+        dplyr::mutate(
+          channel = dplyr::case_when(
+            fcode %in% c(46000, 46003, 46006, 46007) ~ "unaltered",
+            TRUE                                     ~ "altered"
+          ) 
+        ) %>% 
+        dplyr::arrange(topo_sort)
+      
+      logger::log_info("Rounding geometry precision")
+      
+      # round edge precision to make sure edges connect exactly
+      sf::st_geometry(flines) <-
+        sf::st_geometry(flines) %>%
+        lapply(function(x) round(x, 0)) %>%
+        sf::st_sfc(crs = sf::st_crs(flines))
+      
+      return(flines)
     
-    logger::log_info("Rounding geometry precision")
+  } else if(split == TRUE & channels == TRUE) {
     
-    # round edge precision to make sure edges connect exactly
-    sf::st_geometry(flines) <-
-      sf::st_geometry(flines) %>%
-      lapply(function(x) round(x, 0)) %>%
-      sf::st_sfc(crs = sf::st_crs(flines))
+      logger::log_info("Keeping FCODE/FTYPE")
     
-    return(flines)
+      # Topologically sorted flowline network
+      flines <-
+        ut_sort %>% 
+        dplyr::select(comid, tocomid, topo_sort, levelpath ,                   
+                      streamleve, streamorde, streamcalc, hydroseq, 
+                      terminalID, reachcode,ftype, fcode,  geometry) %>%
+        dplyr::mutate(
+          channel = dplyr::case_when(
+            fcode %in% c(46000, 46003, 46006, 46007) ~ "unaltered",
+            TRUE                                     ~ "altered"
+          ) 
+        ) %>% 
+        dplyr::arrange(topo_sort)
+      
+      logger::log_info("Rounding geometry precision")
+      
+      # round edge precision to make sure edges connect exactly
+      sf::st_geometry(flines) <-
+        sf::st_geometry(flines) %>%
+        lapply(function(x) round(x, 0)) %>%
+        sf::st_sfc(crs = sf::st_crs(flines))
+      
+      return(flines)
     
   }
   
@@ -880,6 +941,443 @@ network_connectivity <- function(flines, points, return_wide = TRUE) {
     return(lhd_summary)
     
   }
+}
+# Calculate distances between points (upstream and downstream)
+# Return_wide will return a wide dataframe w/ a single row for each point where the network is split
+network_channel_alt <- function(
+  flines, 
+  points, 
+  return_wide = TRUE
+  ) {
+  
+  # topo sort # for each comid --> LHD point
+  lhd_sort <-
+    flines %>%
+    dplyr::filter(comid %in% points$comid) %>% 
+    dplyr::select(comid, lhd_topo_sort = topo_sort, lhd_hydroseq = hydroseq) %>%
+    # dplyr::select(from, to, comid, group, lhd_topo_sort = topo_sort, lhd_hydroseq = hydroseq) %>%
+    dplyr::group_by(comid) %>%
+    dplyr::slice(1) %>%
+    dplyr::ungroup() %>% 
+    sf::st_drop_geometry() 
+  
+  # Join comids and LHD ID to grouped line string
+  lhd_info <-
+    points %>% 
+    dplyr::select(new_id, comid, reachcode,  geometry) %>%
+    dplyr::mutate(comid = as.integer(comid)) %>% 
+    dplyr::mutate(
+      lng = sf::st_coordinates(.)[,1],
+      lat = sf::st_coordinates(.)[,2]
+    ) %>% 
+    sf::st_drop_geometry() %>% 
+    dplyr::left_join(
+      lhd_sort, 
+      by = "comid"
+    )
+  
+  logger::log_info("Calculating segmented network lengths")
+  
+  # edge_elev <-    
+  #   edges %>% 
+  #   group_by(group) %>% 
+  #   fline_elevation()
+  
+  # get total lengths of grouped line segments
+  group_sum <- 
+    flines %>%
+    dplyr::group_by(group) %>%
+    dplyr::mutate(
+      min_topo_sort  = min(topo_sort)
+    ) %>% 
+    # ungroup() %>% arrange(min_topo_sort)  %>% group_by(group) %>%
+    dplyr::summarise(
+      from           = min(from),
+      to             = max(to),
+      min_topo_sort  = mean(min_topo_sort, na.rm = T)
+    ) %>%
+    dplyr::select(geometry, from, to, min_topo_sort, group) %>% 
+    dplyr::mutate(length = as.numeric(sf::st_length(.))) %>% 
+    sf::st_sf() %>%
+    sf::st_cast("MULTILINESTRING") %>% 
+    dplyr::mutate(
+      length = round(length, 2)
+      )
+      
+  # get total lengths of grouped line segments
+  channel_alt <- 
+    flines %>%
+    dplyr::group_by(group) %>%
+    dplyr::mutate(
+      min_topo_sort  = min(topo_sort)
+    ) %>% 
+    dplyr::ungroup() %>% 
+    # dplyr::filter(group == 5) %>% 
+    # dplyr::group_by(group, channel) %>%
+    dplyr::mutate(length = as.numeric(sf::st_length(.))) %>%
+    dplyr::select(channel, length, from, to, min_topo_sort, group, geometry) %>% 
+    sf::st_drop_geometry() %>% 
+    # dplyr::group_by(group, channel) %>%
+    dplyr::group_by(group) %>%
+    dplyr::mutate(total_length = sum(length)) %>% 
+    dplyr::ungroup() %>% 
+    # group_by(channel) %>% 
+    dplyr::group_by(group, channel) %>%
+    summarize(
+      total_length = mean(total_length),
+      length       = sum(length)
+    ) %>% 
+    dplyr::mutate(
+      channel_pct = round(100*(length/total_length), 3)
+      ) %>% 
+    tidyr::pivot_wider(
+      id_cols     = c(group),
+      names_from  = "channel",
+      values_from = c("channel_pct", "length")
+      ) %>% 
+    replace(is.na(.), 0) %>% 
+    dplyr::mutate(dplyr::across(where(is.numeric), round, 2))
+    
+     # mapview(channel_alt)
+  # %>% 
+  #   # ungroup() %>% arrange(min_topo_sort)  %>% group_by(group) %>%
+  #   dplyr::summarise(
+  #     from           = min(from),
+  #     to             = max(to),
+  #     min_topo_sort  = mean(min_topo_sort, na.rm = T)
+  #   ) %>%
+  #   dplyr::select(geometry, from, to, min_topo_sort, group) %>% 
+  #   dplyr::mutate(length = as.numeric(sf::st_length(.))) %>% 
+  #   sf::st_sf() %>%
+  #   sf::st_cast("MULTILINESTRING") %>% 
+  #   dplyr::mutate(
+  #     length = round(length, 2)
+  #   )
+  
+  logger::log_info("Finding relative US/DS position of segmented network")
+  
+  # match LHD points with upstream and downstream flowline groups
+  lhd_group <- 
+    points %>% 
+    sf::st_buffer(1) %>%
+    dplyr::select(new_id, comid, is_point, geometry) %>% 
+    # dplyr::select(new_id, lhd_comid = comid, lhd_hydroseq = hydroseq, is_point, geometry) %>% 
+    sf::st_filter(group_sum) %>% 
+    sf::st_join(group_sum) %>% 
+    sf::st_centroid()  %>% 
+    dplyr::left_join(
+      dplyr::select(lhd_info, new_id, lhd_topo_sort, hydroseq = lhd_hydroseq, lng, lat, reachcode),
+      by = "new_id"
+    ) %>% 
+    # dplyr::left_join(dplyr::select(sf::st_drop_geometry(edge_elev), group, elevation),  by = "group") %>% 
+    dplyr::relocate(comid, new_id, group, lhd_topo_sort,
+                    from, to,
+                    min_topo_sort, 
+                    hydroseq, length, is_point, lng, lat, reachcode, geometry) %>% 
+    dplyr::group_by(new_id) %>%
+    dplyr::mutate(
+      npts        = dplyr::n(),
+      lag_from    = lag(from), 
+      lag_to      = lag(to), 
+      lead_from   = lead(from), 
+      lead_to     = lead(to), 
+      position    = dplyr::case_when(
+        to   == lead_from                   ~ "us",
+        from == lag_to                      ~ "ds",
+        min_topo_sort == max(min_topo_sort) ~ "us",
+        min_topo_sort == min(min_topo_sort) ~ "ds"
+      )
+    ) %>%
+    dplyr::ungroup() %>% 
+    dplyr::relocate(comid, new_id, npts, group, 
+                    from, to, lag_from, lag_to, lead_from, lead_to, position,length, 
+                    hydroseq, lhd_topo_sort, min_topo_sort,  
+                    is_point, lng, lat,reachcode, geometry) %>% 
+    dplyr::select(-lag_from, -lag_to, -lead_from, -lead_to)
+  
+  logger::log_info("Creating list of upstream and downstream COMIDs")
+  
+  # list of comids per group 
+  comid_group <- 
+    flines %>%
+    sf::st_drop_geometry() %>% 
+    dplyr::select(group, comid) %>% 
+    dplyr::group_by(group) %>% 
+    dplyr::summarise(comid_list = list(as.character(comid)))
+  
+  # Join comids and create lists of COMIDs
+  lhd_summary <-
+    lhd_group %>% 
+    sf::st_drop_geometry() %>%
+    dplyr::select(group, new_id, comid, 
+                  from, to, position, length, 
+                  min_topo_sort, hydroseq, reachcode) %>%
+    dplyr::group_by(comid, new_id, position) %>%
+    dplyr::left_join(
+      comid_group, 
+      by = "group"
+    ) %>% 
+    dplyr::mutate(
+      comid_list    = c(comid_list)
+    ) %>% 
+    dplyr::ungroup()
+  
+  # Nest groups as list 
+  # nest_groups <-  lhd_summary %>% 
+  #   dplyr::group_by(new_id) %>%  # dplyr::group_by(new_id, position) %>% 
+  #   dplyr::summarise(group_list = list(as.character(group))) %>% dplyr::ungroup()
+  
+  # Join nested groups list column with rest of summary data
+  # lhd_summary <- dplyr::left_join( lhd_summary, 
+  # nest_groups, 
+  # by = c("new_id")) 
+  
+  lhd_summary$geometry <- sf::st_geometry(lhd_group)
+  
+  lhd_summary <- 
+    lhd_summary %>% 
+    dplyr::select(new_id, group, from, to, position,
+                  length, min_topo_sort, hydroseq, comid, reachcode, comid_list,
+                  # group_list,
+                  geometry) %>% 
+    dplyr::group_by(new_id) %>%
+    dplyr::arrange(length(comid_list), .by_group = T) %>% 
+    dplyr::ungroup() %>% 
+    dplyr::left_join(
+      channel_alt,
+      by = "group"
+    )
+  # %>%  dplyr::select(new_id, from, to, position,  length,
+  #         min_topo_sort, hydroseq, comid, reachcode, comid_list, group_list)
+  
+  logger::log_info("Tidying final dataframe...")
+  
+  # snake_net_name <- gsub(" ", "_", net_name)
+  if(return_wide == TRUE) {
+    
+    logger::log_info("Returning wide dataframe...")
+    
+    # wide comid dataframe
+    lhd_wide <-
+      lhd_summary %>% 
+      tidyr::pivot_wider(
+        id_cols     = c(new_id, hydroseq, comid, reachcode, 
+                        # group_list,
+                        geometry),
+        names_from  = "position",
+        names_glue  = "{position}_{.value}",
+        values_from = c(length, comid_list, group)
+        # values_from = c(length, min_topo_sort, comid_list)
+      ) %>% 
+      dplyr::relocate(new_id, comid, hydroseq, us_length, ds_length, 
+                      us_comid_list, ds_comid_list, us_group, ds_group, reachcode,
+                      # group_list,
+                      geometry)
+    
+    return(lhd_wide)
+    
+  } else if(return_wide == FALSE) {
+    
+    logger::log_info("Returning long dataframe...")
+    
+    return(lhd_summary)
+    
+  }
+}
+
+# Retrieve catchments from COMIDs and union to single polygon
+catch_union <- function(comid) {
+  
+  # US/DS catchments
+  catch <- 
+    nhdplusTools::get_nhdplus(
+      comid       = comid,
+      realization = "catchment"
+    ) %>% 
+    sf::st_transform(5070) %>% 
+    dplyr::mutate(
+      new_id = 1:n()
+    )
+  
+  # Union all catchment into single polygon
+  catch <-
+    catch %>% 
+    dplyr::summarize(geometry = sf::st_union(geometry)) %>% 
+    dplyr::mutate(
+      new_id = 1:n()
+    )
+  return(catch)
+}
+
+# Retrieve NLCD landcover data for a polygon, option to mask to polygon using 'mask = TRUE'
+st_landcover <- function(
+  shp, 
+  r_field  = "new_id", 
+  lc_label = "catchments",
+  mask     = FALSE) {
+  
+  # empty raster
+  rtemp <- raster::raster(
+    ext = extent(shp),
+    res = c(100, 100),
+    crs = crs(shp)
+  )
+  
+  # Create raster of HUC12s
+  shp_r <- fasterize::fasterize(
+    shp,
+    raster = rtemp, 
+    # field  = "new_id"
+    field  = r_field
+  )
+  
+  logger::log_info("\n\nDownloading NLCD subset...")
+  
+  # Get the NLCD 
+  nlcd <- FedData::get_nlcd(
+    template   = shp_r,
+    label      = lc_label, 
+    # label      = "catchments", 
+    force.redo = T
+  )
+  if (mask == TRUE) {
+    
+    logger::log_info("\n\nMasking landcover to geometry")
+    
+    nlcd <- 
+      nlcd %>% 
+      raster::crop(shp) %>% 
+      raster::mask(shp)
+    
+    return(nlcd)
+    
+  } else {
+    
+    return(nlcd)
+    
+  }
+  
+  
+}
+
+# Calculate percent natural vs. unnatural landcover from NLCD raster
+landcover_pct <- function(nlcd, rel_position = "us", id_label = "new_id") {
+  # classify = TRUE
+  # if (classify == TRUE) {}
+  # Extract NLCD raster values and bin into natural and unnatural land types
+  landcover <- 
+    # ds_catch %>%
+    nlcd %>%
+    raster::values() %>% 
+    tibble::tibble() %>% 
+    na.omit() %>% 
+    setNames(c("code")) %>% 
+    dplyr::mutate(
+      class = dplyr::case_when(
+        code %in% c(21, 22, 23, 24, 81, 82)  ~ "unnat_lc",
+        TRUE                                 ~ "nat_lc"
+      )
+    ) 
+  
+  logger::log_info("\n\nExtracting % of landcover types...")
+  
+  # Count natural and unnatural land types bins and calculate % of total
+  lc_class <-
+    landcover %>%
+    dplyr::count(class) %>% 
+    dplyr::mutate(
+      total_cells  = sum(n, na.rm = T), 
+      pct          = round(n/total_cells, 4) *100,
+      new_id       = id_label,
+      # new_id       = i_new_id,
+      position     = rel_position
+      # position     = "ds"
+    ) %>%
+    dplyr::relocate(new_id, position)
+  
+  # total # of cells
+  total_cells <- lc_class$total_cells[1]
+  
+  total_cells_col <- paste0(rel_position, "_cells")
+  
+  # Widen natural/unnatural land type %
+  lc_class <- 
+    lc_class %>% 
+    tidyr::pivot_wider(
+      id_cols     = c(new_id),
+      names_from  = c(class, position),
+      # names_glue = "{position}_{.value}",
+      names_glue = "{position}_{class}_{.value}",
+      values_from = c(pct)
+    ) %>%  
+    dplyr::mutate(
+      total_cells  = total_cells
+    ) %>%
+    dplyr::relocate(new_id, total_cells) %>% 
+    dplyr::rename(!!sym(total_cells_col) := total_cells) %>% 
+    replace(., is.na(.), 0)
+
+  return(lc_class)
+  
+}
+
+# *****************************************************
+# *****************************************************
+
+## Extra code for extracting individual (all categories) landcover type %
+
+#   logger::log_info("\n\nExtracting % of individual land types...")
+#   
+#   # Individual land type classification percentages of NLCD raster
+#   land_type_vals <- 
+#     lc_vals %>% 
+#     dplyr::count(code) %>% 
+#     dplyr::mutate(
+#       total_cells    = sum(n, na.rm = T), 
+#       code_pct       = round(n/total_cells, 4) *100,
+#       new_id         = i_new_id
+#     ) %>%
+#     dplyr::relocate(new_id) %>% 
+#     dplyr::left_join(
+#       nlcd_codes(),
+#       by = "code"
+#       ) %>% 
+#     dplyr::select(-code) %>%
+#     tidyr::pivot_wider(
+#       id_cols     = c(new_id),
+#       names_from  = "land_type",
+#       values_from = "code_pct"
+#     ) %>%
+#     dplyr::mutate(
+#       total_cells  = total_cells
+#     ) %>%
+#     dplyr::relocate(new_id, total_cells) %>% 
+#     dplyr::mutate(dplyr::across(where(anyNA), ~ tidyr::replace_na(., 0)))
+#   
+#   class_lst[[i]]     <- class_vals
+#   land_type_lst[[i]] <- land_type_vals
+#   
+# }
+
+# *****************************************************
+
+# NLCD 2019 codes & class descriptions
+nlcd_codes <- function() {
+  logger::log_info("NLCD 2019 - Codes and Class description")
+  codes <- tibble::tibble(
+    code = as.integer(c(11, 12, 
+             21, 22, 23, 24, 
+             31, 41, 42, 43, 51, 52,
+             71, 72, 73, 74,
+             81, 82, 90, 95)),
+    land_type = c("open_water","perennial_ice_snow",
+              "developed_open_space", "developed_low_intensity", "developed_medium_intensity", "developed_high_intensity",
+              "barren_land", "deciduous_forest", "evergreen_forest", "mixed_forest", "dwarf_scrub", "shrub_scrub",
+              "grassland_herbaceous", "sedge_herbaceous", "lichens","moss",
+              "pasture_hay", "cultivated_crops","woody_wetlands", "emergent_herbaceous_wetlands"
+    )
+  )
+  return(codes)
 }
 # ***********************************
 # ---- Standardization functions ----
