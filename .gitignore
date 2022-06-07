@@ -2,6 +2,12 @@
 
 ^recreation/plots$
 
+# Folders
+data/spatial/networks/full*
+
+data/spatial/networks/trim*
+
+
 .Rproj.user
 .Rhistory
 .RData
@@ -17,8 +23,7 @@
 *.toc
 *.fmt
 *.fot
-*.cb
-*.cb2
+*.
 .*.lb
 
 ## Intermediate documents:
