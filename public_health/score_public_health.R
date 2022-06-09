@@ -47,6 +47,7 @@ all_public_health <- lhd_pt %>%
   left_join(fatalities, by = c("new_id" = "uid")) %>%
   left_join(lhd_atlas_sum, by = c("new_id" = "uid")) %>%
   left_join(weighted_pop_rank, by = c("new_id" = "uid")) %>%
+  left_join(aw_reaches, by = "new_id") %>%
   filter(structure_category != "Recreation") # take out recreation dams
 
 #normalize function
@@ -58,7 +59,8 @@ score_all <- all_public_health %>%
   mutate(fatal_score = ifelse(is.na(num_fatalities),0,num_fatalities),
          fishing_score = ifelse(is.na(num_fishing_spots),0,1),
          pop_score = 1-norm(rank),
-         ph_tot_score = fatal_score + fishing_score + pop_score)
+         rec_score = aw,
+         ph_tot_score = fatal_score + fishing_score + rec_score + pop_score)
 
 score <- score_all %>%
   select(new_id, ph_tot_score)
@@ -66,7 +68,8 @@ score <- score_all %>%
 score_top10 <- score_all %>%
   arrange(desc(ph_tot_score)) %>%
   slice(1:10) %>%
-  select(new_id, num_fatalities, structure_category, rank, num_fishing_spots, ph_tot_score)
+  select(new_id, num_fatalities, structure_category, rank, num_fishing_spots, aw, ph_tot_score) %>%
+  st_drop_geometry()
 
 write.csv(score_top10, "data/scores/public_health_score_top10.csv", row.names = FALSE)
   

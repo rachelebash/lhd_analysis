@@ -168,7 +168,8 @@ save_aw <- aw_lhd %>%
   st_drop_geometry() %>%
   distinct() %>%
   right_join(., lhd_pt, by = "new_id") %>%
-  mutate(aw = if_else(is.na(aw), 0, aw))
+  mutate(aw = if_else(is.na(aw), 0, aw)) %>%
+  select(new_id, aw)
 
 saveRDS(save_aw, "data/recreation/aw_reaches.rds")
 
@@ -198,7 +199,8 @@ save_gold <- gold_lhd %>%
   st_drop_geometry() %>%
   distinct() %>%
   right_join(., lhd_pt, by = "new_id") %>%
-  mutate(gold = if_else(is.na(gold), 0, gold))
+  mutate(gold = if_else(is.na(gold), 0, gold)) %>%
+  select(new_id, gold)
 
 
 saveRDS(save_gold, "data/recreation/gold_reaches.rds")

@@ -1,4 +1,4 @@
-# scoring impact categories - aquatic health
+# scoring impact categories - recreation
 
 # Rachel Bash 6/1/2022
 
@@ -42,7 +42,7 @@ lhd_pt <- readr::read_csv("data/lhd/Low Head Dam Inventory Final CIM 092920 - In
 
 
 # read in all data for watershed condition
-paths <- list.files(path = here::here("data/aquatic_health/"), pattern = "\\.rds", full.names = T)
+paths <- list.files(path = here::here("data/recreation/"), pattern = "\\.rds", full.names = T)
 
 for(i in 1:length(paths)) {
   names <- gsub(pattern = "\\.rds$", replacement = "", x = basename(paths[i]))
@@ -50,50 +50,48 @@ for(i in 1:length(paths)) {
   assign(names, readRDS(paths[i]))
 }
 
-connect <- readRDS("data/spatial/networks/connectivity/lhd_network_connectivity.rds")
+connect <- readRDS("data/spatial/networks/connectivity/lhd_network_connectivity.rds") %>%
+  mutate(new_id = as.integer(new_id))
 
 #combine all
 
-all_aquatic_health <- lhd_pt %>%
-  mutate(new_id = as.character(new_id)) %>%
-  left_join(hci_scores, by = "new_id") %>%
+all_recreation <- lhd_pt %>%
+  left_join(aw_reaches, by = "new_id") %>%
+  left_join(gold_reaches, by = "new_id") %>%
+  left_join(muni_dist, by = c("new_id" = "uid")) %>%
+  left_join(lhd_atlas_sum, by = c("new_id" = "uid")) %>%
   left_join(connect, by = "new_id") %>%
-  mutate(tot_hci = as.numeric(tot_hci)) %>%
   filter(structure_category != "Recreation")
 
 #normalize function
 norm <- function(x){(x-min(x, na.rm = TRUE))/(max(x, na.rm = TRUE)-min(x, na.rm = TRUE))}
 
 # create scoring
-score <- all_aquatic_health %>%
+score <- all_recreation %>%
   mutate(connect_score = norm(pmin(us_length, ds_length)),
          connect_rank = dense_rank(desc(pmin(us_length, ds_length))),
-         ah_tot_score = tot_hci + connect_score) %>%
-  select(new_id, tot_hci, connect_score, ah_tot_score) %>%
+         muni_score = ifelse(muni_dist == 0,1,1-norm(muni_dist)),
+         aw_score = aw,
+         gold_score = gold,
+         rec_tot_score = connect_score + muni_score + aw_score + gold_score) %>%
+  select(new_id, connect_score, muni_score, aw_score, gold_score, rec_tot_score) %>%
   st_drop_geometry() %>%
-  drop_na()
+  janitor::clean_names()
 
 # top 10
 score_top10 <- score %>%
-  arrange(desc(ah_tot_score)) %>%
+  arrange(desc(rec_tot_score)) %>%
   slice(1:10)
 
-write.csv(score_top10, "data/scores/aquatic_health_score_top10.csv", row.names = FALSE)
+write.csv(score_top10, "data/scores/recreation_score_top10.csv", row.names = FALSE)
 
 # visualise scoring
 summary(score)
-ggplot(data = score, aes(ah_tot_score)) +
+ggplot(data = score, aes(rec_tot_score)) +
   geom_histogram(binwidth = 0.1) +
   theme(text = element_text(size = 16)) +
   labs(x = "Total Score", y = "# LHDs")
 
-ggsave("aquatic_health/plots/score_hist.png", height = 6, width = 6)
+ggsave("recreation/plots/score_hist.png", height = 6, width = 6)
 
-saveRDS(score, "data/scores/aquatic_health_score.rds")
-
-# see na scores
-score_na_ah <- all_aquatic_health %>%
-  select(new_id, tot_hci) %>%
-  filter(is.na(tot_hci))
-
-mapview(lhd_pt)
+saveRDS(score, "data/scores/recreation_score.rds")

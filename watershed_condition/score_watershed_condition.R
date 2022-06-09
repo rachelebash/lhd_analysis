@@ -40,15 +40,11 @@ lhd_pt <- readr::read_csv("data/lhd/Low Head Dam Inventory Final CIM 092920 - In
   relocate(new_id) %>%
   select(-x11,-x12)
 
-
-# read in all data for watershed condition
-paths <- list.files(path = here::here("data/watershed_condition/"), pattern = "\\.rds", full.names = T)
-
-for(i in 1:length(paths)) {
-  names <- gsub(pattern = "\\.rds$", replacement = "", x = basename(paths[i]))
-  print(names)
-  assign(names, readRDS(paths[i]))
-}
+# get watershed condition datasets
+connect <- readRDS("data/spatial/networks/connectivity/lhd_network_connectivity.rds")
+network_channel_alt_pct <- readRDS("data/channel_alterations/network_channel_alt_pct.rds")
+catchment_landcover <- readRDS("data/landcover/catchment_landcover.rds")
+network_complexity <- readRDS("data/network_complexity/network_complexity.rds")
 
 #combine all
 
@@ -57,7 +53,9 @@ all_watershed_cond <- lhd_pt %>%
   left_join(catchment_landcover, by = "new_id") %>%
   left_join(network_channel_alt_pct, by = "new_id") %>%
   left_join(network_complexity, by = "new_id") %>%
+  left_join(connect, by = "new_id") %>%
   filter(structure_category != "Recreation")
+
 
 #normalize function
 norm <- function(x){(x-min(x, na.rm = TRUE))/(max(x, na.rm = TRUE)-min(x, na.rm = TRUE))}
@@ -66,18 +64,26 @@ norm <- function(x){(x-min(x, na.rm = TRUE))/(max(x, na.rm = TRUE)-min(x, na.rm 
 
 score <- all_watershed_cond %>%
   mutate(lc_rank = dense_rank(desc(total_nat_lc_pct)),
-         complex_rank = dense_rank(desc(total_size_class)),
+         complex_rank = dense_rank(desc(us_size_class)),
          alt_rank = dense_rank(desc(us_channel_pct_unaltered)),
+         connect_rank = dense_rank(desc(pmin(us_length, ds_length))),
          lc_score = norm(total_nat_lc_pct),
-         complex_score = norm(total_size_class),
+         complex_score = norm(us_size_class),
          alt_score = norm(us_channel_pct_unaltered),
-         wc_tot_score = lc_score + complex_score + alt_score) %>%
-  select(new_id, lc_rank, lc_score, complex_rank, complex_score, alt_rank, alt_score, wc_tot_score) %>%
+         connect_score = norm(pmin(us_length, ds_length)),
+         wc_tot_score = lc_score + complex_score + alt_score + connect_score,
+         wc_tot_score = round(wc_tot_score, 3)) %>%
+  select(new_id, lc_rank, lc_score, complex_rank, complex_score, alt_rank, alt_score, connect_rank, 
+         connect_score, wc_tot_score) %>%
   st_drop_geometry()
 
 
-score_na <- score %>%
-  filter(is.na(lc_score))
+score_top10 <- score %>%
+  arrange(desc(wc_tot_score)) %>%
+  slice(1:10) %>%
+  select(new_id, connect_score, complex_score, alt_score, lc_score, wc_tot_score)
+
+write.csv(score_top10, "data/scores/watershed_condition_score_top10.csv", row.names = FALSE)
 
 # visualise scoring
 summary(score)
@@ -89,10 +95,4 @@ ggplot(data = score, aes(wc_tot_score)) +
 ggsave("watershed_condition/plots/score_hist.png", height = 6, width = 6)
 
 saveRDS(score, "data/scores/watershed_condition_score.rds")
-# save this once Angus pushes his stuff
 
-test <- network_complexity %>%
-  filter(!new_id %in% score_na$new_id)
-
-test1 <- network_complexity %>%
-  filter(new_id %in% test$new_id)

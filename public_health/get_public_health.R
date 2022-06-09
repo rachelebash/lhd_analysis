@@ -221,3 +221,32 @@ lhd_atlas_counts <- lhd_atlas %>%
 lhd_atlas_sum <- full_join(n_fishing_spots, lhd_atlas_counts)
 
 saveRDS(lhd_atlas_sum, "data/public_health/lhd_atlas_sum.rds")
+
+# recreation data --------------
+#read in aw reaches
+aw <- st_read(paste0(drive_dir, "/data/aw_reach_segments/co_reach_segments.shp")) %>%
+  st_transform(5070) %>%
+  mutate(lengths = st_length(geometry))
+
+# create buffer around lhds of 500 meters
+lhd_buff <- st_buffer(lhd_pt, 500)
+
+
+# find lhds on aw reaches within 500 meters of lhds
+aw_lhd <- st_intersection(lhd_buff, aw)
+
+# map of lhd buffers and aw reaches
+mapview(aw_lhd, col.regions = "red", col = "red") + mapview(aw, col.regions = "blue") +
+  mapview(lhd_buff, col.regions = "green", col = "green")
+
+# save gold_lhd data
+save_aw <- aw_lhd %>% 
+  select(new_id) %>%
+  mutate(aw = 1) %>%
+  st_drop_geometry() %>%
+  distinct() %>%
+  right_join(., lhd_pt, by = "new_id") %>%
+  mutate(aw = if_else(is.na(aw), 0, aw)) %>%
+  select(new_id, aw)
+
+saveRDS(save_aw, "data/public_health/aw_reaches.rds")
