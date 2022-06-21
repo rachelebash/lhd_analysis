@@ -1,0 +1,40 @@
+mgmt_descr,legend,,,,,,BLM
+BLM - General,BLM,,,,,,Federal
+National Conservation Area,BLM,,,,,,Local
+National Monument,BLM,,,,,,NGO/Land Trust
+Bureau of Reclamation (BOR),Federal,,,,,,NPS
+Army Corps of Engineers,Federal,,,,,,Private
+City Natural Area,Local,,,,,,Private Conservation
+City Land - Unknown,Local,,,,,,State
+Other Special District Land - General,Local,,,,,,Tribal
+City Trail/Trail Access,Local,,,,,,USFS
+City Parks,Local,,,,,,USFWS
+County Land - General,Local,,,,,,
+City Watershed Area - Reservoir & Drainage,Local,,,,,,
+City Land - General,Local,,,,,,
+City Watershed Area - Headwaters,Local,,,,,,
+County Parks,Local,,,,,,
+County Stormwater Area/Channel/Detention Pond,Local,,,,,,
+Regional (Metro District) Trail/Trail Access,Local,,,,,,
+Regional (Metro District) Natural Area,Local,,,,,,
+County Land - Unknown,Local,,,,,,
+City Public Works/Facilities,Local,,,,,,
+County Natural Area,Local,,,,,,
+Non-Governmental Lands,NGO/Land Trust,,,,,,
+Local Land Trust Lands,NGO/Land Trust,,,,,,
+National Recreation Area,NPS,,,,,,
+National Park,NPS,,,,,,
+Private Land,Private,,,,,,
+Private Land (w/ Protection),Private Conservation,,,,,,
+Private Land (w/ Protection) - Building Envelope,Private Conservation,,,,,,
+State Wildlife Area,State,,,,,,
+State Land Board Public Access Program - Seasonal Access,State,,,,,,
+State University - Special Management,State,,,,,,
+State Fish Hatchery/Unit,State,,,,,,
+State Parks,State,,,,,,
+State Land Board,State,,,,,,
+Fishing Access (Lease or Easement),State,,,,,,
+Native American Lands,Tribal,,,,,,
+National Forest - General,USFS,,,,,,
+National Monument,USFS,,,,,,
+National Wildlife Refuge,USFWS,,,,,,

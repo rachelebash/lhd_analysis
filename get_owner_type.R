@@ -52,6 +52,8 @@ lhd_pt <- readr::read_csv("data/lhd/Low Head Dam Inventory Final CIM 092920 - In
 
 mapview(land, zcol = "legend")
 
+mapview(lhd_land, zcol = "legend")
+
 
 #join lhd and land type
 lhd_land <- st_join(lhd_pt, land) %>%
