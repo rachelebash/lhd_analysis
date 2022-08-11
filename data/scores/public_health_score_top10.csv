@@ -1,11 +1,11 @@
-"new_id","num_fatalities","structure_category","rank","num_fishing_spots","aw","ph_tot_score"
-156,4,"Diversion Dam",1014,NA,1,5.07825295723385
-784,3,"Grade Control Structure",48,NA,1,4.95723384895359
-893,2,"Grade Control Structure",935,NA,1,3.15013648771611
-119,NA,"Diversion Dam",130,1,1,2.88262056414923
-121,NA,"Diversion Dam",134,1,1,2.87898089171975
-120,NA,"Diversion Dam",135,1,1,2.87807097361237
-157,NA,"Diversion Dam",301,1,1,2.7270245677889
-894,NA,"Grade Control Structure",302,1,1,2.72611464968153
-160,2,"Diversion Dam",305,NA,0,2.72338489535942
-442,1,"Diversion Dam",309,1,0,2.71974522292994
+"new_id","structure_category","num_fatalities","rank","num_fishing_spots","aw","hazard_score","ph_tot_score"
+156,"Diversion Dam",4,1014,NA,1,4,17.0782529572339
+784,"Grade Control Structure",3,48,NA,1,4,14.9572338489536
+160,"Diversion Dam",2,305,NA,0,4,10.7233848953594
+18,"Diversion Dam",2,689,NA,0,4,10.3739763421292
+442,"Diversion Dam",1,309,1,0,4,8.71974522292994
+893,"Grade Control Structure",2,935,NA,1,1,8.15013648771611
+58,"Diversion Dam",1,276,NA,0,4,7.74977252047316
+119,"Diversion Dam",NA,130,1,1,4,6.88262056414923
+349,"Diversion Dam",NA,470,1,1,4,6.57324840764331
+239,"Diversion Dam",NA,877,1,1,4,6.20291173794359

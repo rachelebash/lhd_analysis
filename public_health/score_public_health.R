@@ -15,6 +15,7 @@ library(zoo)
 library(logger)
 library(USAboundaries)
 library(mapview)
+library(googlesheets4)
 
 
 #utility functions
@@ -42,12 +43,24 @@ for(i in 1:length(paths)) {
   assign(names, readRDS(paths[i]))
 }
 
+# read in hazard scoring sheet
+hazard_doc <- read_sheet("https://docs.google.com/spreadsheets/d/1etAua-WXF8iWS0YHrSsf5Vpy0rDSN0nN4SQjcscuNq0/edit#gid=1369894982",
+                           sheet = 2,
+                           range = "A:Q") 
+
+hazard_doc <- hazard_doc %>%
+  janitor::clean_names() %>%
+  select(new_id, hazard_score, comments) %>%
+  filter(hazard_score != "X") %>%
+  mutate(hazard_score = as.numeric(hazard_score))
+
 # join all public health categories to lhd list
 all_public_health <- lhd_pt %>% 
   left_join(fatalities, by = c("new_id" = "uid")) %>%
   left_join(lhd_atlas_sum, by = c("new_id" = "uid")) %>%
   left_join(weighted_pop_rank, by = c("new_id" = "uid")) %>%
   left_join(aw_reaches, by = "new_id") %>%
+  left_join(hazard_doc, by = "new_id") %>%
   filter(structure_category != "Recreation") # take out recreation dams
 
 #normalize function
@@ -56,11 +69,12 @@ norm <- function(x){(x-min(x))/(max(x)-min(x))}
 # create score
 
 score_all <- all_public_health %>%
-  mutate(fatal_score = ifelse(is.na(num_fatalities),0,num_fatalities),
+  mutate(fatal_score = ifelse(is.na(num_fatalities),0,3*num_fatalities),
          fishing_score = ifelse(is.na(num_fishing_spots),0,1),
          pop_score = 1-norm(rank),
          rec_score = aw,
-         ph_tot_score = fatal_score + fishing_score + rec_score + pop_score)
+         hazard_score = 4*hazard_score,
+         ph_tot_score = fatal_score + fishing_score + rec_score + pop_score + hazard_score)
 
 score <- score_all %>%
   select(new_id, ph_tot_score)
@@ -68,7 +82,7 @@ score <- score_all %>%
 score_top10 <- score_all %>%
   arrange(desc(ph_tot_score)) %>%
   slice(1:10) %>%
-  select(new_id, num_fatalities, structure_category, rank, num_fishing_spots, aw, ph_tot_score) %>%
+  select(new_id, structure_category, num_fatalities, rank, num_fishing_spots, aw, hazard_score, ph_tot_score) %>%
   st_drop_geometry()
 
 write.csv(score_top10, "data/scores/public_health_score_top10.csv", row.names = FALSE)

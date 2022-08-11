@@ -1,4 +1,4 @@
-# get data to Spencer
+# collate all data and deliver to AW
 
 
 # 6/8/2022
@@ -12,7 +12,7 @@ library(sf)
 library(sp)
 library(rgeos)
 library(raster)
-library(plotly)
+library(plotly)=
 library(units)
 library(zoo)
 library(logger)
@@ -72,5 +72,7 @@ all_scores <- lhd %>%
          wc_tot_score = norm(wc_tot_score)) %>%
   select(new_id:longitude, ah_tot_score, ph_tot_score, rec_tot_score, wc_tot_score)
 
-write.csv(all_scores, "data/scores/scores_for_spencer.csv", row.names = FALSE)
+#write.csv(all_scores, "data/scores/scores_for_spencer.csv", row.names = FALSE)
+
+write.csv(all_scores, "data/scores/lhd_scores_8.9.22.csv")
 
